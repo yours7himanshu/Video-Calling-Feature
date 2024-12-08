@@ -54,9 +54,9 @@ export const PeerProvider = (props) => {
   };
 
   const handleTrackEvent = useCallback((ev) => {
-    const streams = ev.streams;
-    setRemoteStream(streams[0]);
-  });
+    console.log("Track event", ev.streams);
+    setRemoteStream(ev.streams[0]);
+  }, []);
 
 
   useEffect(() => {

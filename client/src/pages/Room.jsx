@@ -89,8 +89,20 @@ const RoomPage = () => {
       <h1>Thnks for joining this room</h1>
       <h3>You are connected to : {remoteEmailId} </h3>
       <button onClick={(e) => sendStream(myStream)}>Send my video</button>
-      <ReactPlayer url={myStream} playing muted controls />
-      <ReactPlayer url={remoteStream} playing muted controls />
+      <video
+  ref={(ref) => ref && (ref.srcObject = myStream)}
+  autoPlay
+  muted
+  controls
+  style={{ width: "300px" }}
+></video>
+<video
+  ref={(ref) => ref && (ref.srcObject = remoteStream)}
+  autoPlay
+  controls
+  style={{ width: "300px" }}
+></video>
+
     </div>
   );
 };
