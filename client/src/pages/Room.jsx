@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSocket } from "../providers/Socket";
 import { usePeer } from "../providers/Peer";
 import ReactPlayer from "react-player";
+
 const RoomPage = () => {
   const { socket } = useSocket();
   const {
@@ -21,9 +22,8 @@ const RoomPage = () => {
       video: true,
     });
     setMyStream(stream);
-  }, [setMyStream]);
-
-
+    sendStream(stream); // Automatically send stream on joining
+  }, [setMyStream, sendStream]);
 
   const handleNewUserJoined = useCallback(
     async (data) => {
@@ -35,6 +35,7 @@ const RoomPage = () => {
     },
     [createOffer, socket]
   );
+
   const handleIncommingCall = useCallback(
     async (data) => {
       const { from, offer } = data;
@@ -55,53 +56,69 @@ const RoomPage = () => {
     [setRemoteAns]
   );
 
-  const handleNegotiationNeeded = useCallback(() => {
-    console.log('negotiate please');
-    const localOffer = peer.createOffer();
-    socket.emit('call-user',{emailId:remoteEmailId,offer:localOffer});
-  },[]);
+  const handleNegotiationNeeded = useCallback(async () => {
+    console.log('negotiation needed');
+    const offer = await createOffer();
+    socket.emit('renegotiate', { emailId: remoteEmailId, offer });
+  }, [createOffer, remoteEmailId]);
 
- 
+  const handleIceCandidate = useCallback((event) => {
+    if (event.candidate) {
+      socket.emit('ice-candidate', { candidate: event.candidate, to: remoteEmailId });
+    }
+  }, [socket, remoteEmailId]);
+
+  useEffect(() => {
+    peer.addEventListener('icecandidate', handleIceCandidate);
+    peer.addEventListener('negotiationneeded', handleNegotiationNeeded);
+    return () => {
+      peer.removeEventListener('icecandidate', handleIceCandidate);
+      peer.removeEventListener('negotiationneeded', handleNegotiationNeeded);
+    };
+  }, [peer, handleIceCandidate, handleNegotiationNeeded]);
 
   useEffect(() => {
     socket.on("user-joined", handleNewUserJoined);
     socket.on("incomming-call", handleIncommingCall);
     socket.on("call-accepted", handleCallAccepted);
+    socket.on("ice-candidate", ({ candidate }) => {
+      peer.addIceCandidate(new RTCIceCandidate(candidate));
+    });
+    socket.on("renegotiate", async ({ offer }) => {
+      const ans = await createAnswer(offer);
+      socket.emit('call-accepted', { emailId: remoteEmailId, ans });
+    });
     return () => {
-      console.log("off");
+      socket.off("user-joined", handleNewUserJoined);
+      socket.off("incomming-call", handleIncommingCall);
+      socket.off("call-accepted", handleCallAccepted);
+      socket.off("ice-candidate");
+      socket.off("renegotiate");
     };
-  }, [handleNewUserJoined, socket]);
+  }, [handleNewUserJoined, handleIncommingCall, handleCallAccepted, socket, peer]);
 
   useEffect(() => {
     getUserMediaStream();
   }, [getUserMediaStream]);
 
-  useEffect(() => {
-    peer.addEventListener("negotiationneeded", handleNegotiationNeeded);
-    return () => {
-      peer.removeEventListener("negotiationneeded", handleNegotiationNeeded);
-    };
-  }, []);
-
   return (
     <div>
-      <h1>Thnks for joining this room</h1>
-      <h3>You are connected to : {remoteEmailId} </h3>
-      <button onClick={(e) => sendStream(myStream)}>Send my video</button>
+      <h1>Thanks for joining this room</h1>
+      <h3>You are connected to: {remoteEmailId}</h3>
+      <button onClick={async (e) => await sendStream(myStream)}>Send my video</button>
       <video
-  ref={(ref) => ref && (ref.srcObject = myStream)}
-  autoPlay
-  muted
-  controls
-  style={{ width: "300px" }}
-></video>
-<video
-  ref={(ref) => ref && (ref.srcObject = remoteStream)}
-  autoPlay
-  controls
-  style={{ width: "300px" }}
-></video>
-
+        ref={(ref) => ref && (ref.srcObject = myStream)}
+        autoPlay
+        muted
+        controls
+        style={{ width: "300px" }}
+      ></video>
+      <video
+        ref={(ref) => ref && (ref.srcObject = remoteStream)}
+        autoPlay
+        controls
+        style={{ width: "300px" }}
+      ></video>
     </div>
   );
 };
