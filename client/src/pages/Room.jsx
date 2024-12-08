@@ -56,9 +56,10 @@ const RoomPage = () => {
   );
 
   const handleNegotiationNeeded = useCallback(() => {
-    const localOffer = peer.localDescription;
+    console.log('negotiate please');
+    const localOffer = peer.createOffer();
     socket.emit('call-user',{emailId:remoteEmailId,offer:localOffer});
-  },[peer.localDescription,remoteEmailId,socket]);
+  },[]);
 
  
 
@@ -67,9 +68,7 @@ const RoomPage = () => {
     socket.on("incomming-call", handleIncommingCall);
     socket.on("call-accepted", handleCallAccepted);
     return () => {
-      socket.off("user-joined", handleNewUserJoined);
-      socket.off("incomming-call", handleIncommingCall);
-      socket.off("call-accepted", handleCallAccepted);
+      console.log("off");
     };
   }, [handleNewUserJoined, socket]);
 
